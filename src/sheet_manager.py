@@ -32,6 +32,25 @@ class SheetManager:
         new_df.columns = ['Date', 'Company', 'Job Title', 'Status']
         new_df = new_df[columns]
         
+        # Filter out invalid entries (null dates, empty companies, etc.)
+        initial_count = len(new_df)
+        new_df = new_df[
+            (new_df['Date'].notna()) & 
+            (new_df['Date'] != 'null') & 
+            (new_df['Date'] != '') &
+            (new_df['Company'].notna()) & 
+            (new_df['Company'] != '') &
+            (new_df['Job Title'].notna()) & 
+            (new_df['Job Title'] != '')
+        ]
+        
+        if len(new_df) < initial_count:
+            print(f"Filtered out {initial_count - len(new_df)} invalid entries")
+        
+        if len(new_df) == 0:
+            print("No valid applications after filtering.")
+            return self.output_path
+        
         # If file exists, load and merge
         if os.path.exists(self.output_path):
             existing_df = pd.read_excel(self.output_path)
