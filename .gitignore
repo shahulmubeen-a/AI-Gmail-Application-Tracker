@@ -4,3 +4,4 @@ token.json
 /src/__pycache__/
 /tests/__pycache__/
 /tests/output/
+.first_run_completed
