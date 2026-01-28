@@ -9,12 +9,27 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from apscheduler.schedulers.blocking import BlockingScheduler
+from datetime import datetime
 from src.gmail_client import GmailClient
 from src.email_summarizer import EmailSummarizer
 from src.sheet_manager import SheetManager
 
+# Marker file to track first run
+FIRST_RUN_MARKER = '.first_run_completed'
 
-def run_job_tracker():
+
+def is_first_run():
+    """Check if this is the first run of the application."""
+    return not os.path.exists(FIRST_RUN_MARKER)
+
+
+def mark_first_run_complete():
+    """Create marker file to indicate first run is complete."""
+    with open(FIRST_RUN_MARKER, 'w') as f:
+        f.write(datetime.now().isoformat())
+
+
+def run_job_tracker(is_initial_run=False):
     """Main job to fetch emails and update spreadsheet."""
     print("Starting job application tracker...")
     
@@ -25,11 +40,19 @@ def run_job_tracker():
     days_to_fetch = int(os.getenv('DAYS_TO_FETCH', '7'))
     email_query = os.getenv('EMAIL_QUERY', 'application')
     
+    # Determine days to fetch based on run type
+    if is_initial_run:
+        days = days_to_fetch
+        print(f"Initial run detected. Fetching emails from last {days} days.")
+    else:
+        days = 1
+        print("Scheduled run detected. Fetching emails from today.")
+    
     try:
         # Fetch emails
-        print(f"Fetching emails from last {days_to_fetch} days with query: '{email_query}'")
+        print(f"Fetching emails from last {days} day(s) with query: '{email_query}'")
         client = GmailClient(credentials_path=credentials_path)
-        emails = client.fetch_emails(days=days_to_fetch, query=email_query)
+        emails = client.fetch_emails(days=days, query=email_query)
         print(f"Fetched {len(emails)} emails")
         
         if not emails:
@@ -59,30 +82,51 @@ def run_job_tracker():
 
 
 def main():
-    """Run once or schedule based on environment variable."""
-    schedule_enabled = os.getenv('SCHEDULE_ENABLED', 'false').lower() == 'true'
-    
-    if schedule_enabled:
-        # Run on a schedule
-        schedule_hours = int(os.getenv('SCHEDULE_HOURS', '24'))
-        print(f"Scheduling job to run every {schedule_hours} hours")
+    """Run with smart scheduling: first run checks 7 days, then hourly at 1 minute past."""
+    # Check if this is the first run
+    if is_first_run():
+        print("First run detected. Fetching emails from last 7 days...")
+        run_job_tracker(is_initial_run=True)
+        mark_first_run_complete()
         
+        # Now schedule hourly checks
+        print("\nFirst run completed. Setting up hourly scheduler...")
         scheduler = BlockingScheduler()
-        scheduler.add_job(run_job_tracker, 'interval', hours=schedule_hours)
         
-        # Run immediately on startup
-        run_job_tracker()
+        # Schedule to run at 1 minute past every hour (00:01, 01:01, etc.)
+        scheduler.add_job(
+            run_job_tracker,
+            'cron',
+            minute=1,
+            second=0,
+            args=(False,),  # Not initial run
+            id='hourly_email_check'
+        )
         
-        # Start scheduler
-        print("Scheduler started. Press Ctrl+C to exit.")
+        print("Scheduler started. Job will run at 1 minute past every hour. Press Ctrl+C to exit.")
         try:
             scheduler.start()
         except (KeyboardInterrupt, SystemExit):
             print("Scheduler stopped.")
     else:
-        # Run once
-        print("Running job tracker once...")
-        run_job_tracker()
+        # Subsequent runs - start the scheduler
+        print("Scheduler starting. Job will run at 1 minute past every hour. Press Ctrl+C to exit.")
+        scheduler = BlockingScheduler()
+        
+        # Schedule to run at 1 minute past every hour
+        scheduler.add_job(
+            run_job_tracker,
+            'cron',
+            minute=1,
+            second=0,
+            args=(False,),  # Not initial run
+            id='hourly_email_check'
+        )
+        
+        try:
+            scheduler.start()
+        except (KeyboardInterrupt, SystemExit):
+            print("Scheduler stopped.")
 
 if __name__ == '__main__':
     main()
