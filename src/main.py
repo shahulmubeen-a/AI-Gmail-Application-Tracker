@@ -36,7 +36,7 @@ def run_job_tracker(is_initial_run=False):
     # Initialize components
     credentials_path = os.getenv('GMAIL_CREDENTIALS_PATH', 'credentials.json')
     output_path = os.getenv('OUTPUT_PATH', 'tests/output/applications.xlsx')
-    llm_model = os.getenv('LLM_MODEL', 'deepseek-r1:8b')
+    llm_model = os.getenv('LLM_MODEL', 'deepseek-r1:1.5b')
     days_to_fetch = int(os.getenv('DAYS_TO_FETCH', '7'))
     email_query = os.getenv('EMAIL_QUERY', 'application')
     
