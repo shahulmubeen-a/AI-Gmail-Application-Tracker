@@ -44,13 +44,22 @@ class GmailClient:
         if query:
             search_query = f'{search_query} {query}'
         
-        results = self.service.users().messages().list(
-            userId='me',
-            q=search_query,
-            maxResults=100
-        ).execute()
+        messages = []
+        next_page_token = None
         
-        messages = results.get('messages', [])
+        while True:
+            results = self.service.users().messages().list(
+                userId='me',
+                q=search_query,
+                maxResults=100,
+                pageToken=next_page_token
+            ).execute()
+            
+            messages.extend(results.get('messages', []))
+            next_page_token = results.get('nextPageToken')
+            
+            if not next_page_token:
+                break
         emails = []
         
         for msg in messages:

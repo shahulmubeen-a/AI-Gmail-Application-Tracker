@@ -3,6 +3,7 @@ Summarizes email content and parses them into JSON for further processing.
 """
 
 import json
+import re
 import ollama
 from typing import List, Dict
 from app import config
@@ -30,6 +31,17 @@ class EmailSummarizer:
                 continue
         
         return applications
+
+    def _clean_llm_response(self, content: str) -> str:
+        """Clean LLM response to ensure valid JSON."""
+        # Remove <think>...</think> blocks common in reasoning models
+        content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
+        
+        # Remove markdown code blocks
+        content = re.sub(r'```json\s*', '', content)
+        content = re.sub(r'```\s*', '', content)
+        
+        return content.strip()
     
     def _extract_application_data(self, email: Dict) -> Dict:
         """Extract structured job application data from a single email."""
@@ -46,7 +58,7 @@ class EmailSummarizer:
             Subject: {email.get('subject', 'No subject')}
             Date: {email.get('date', 'Unknown')}
             Body:
-            {email.get('body', email.get('snippet', ''))}
+            {str(email.get('body', email.get('snippet', '')))[:4000]}
 
             Return ONLY valid JSON, no explanation or markdown:
             """
@@ -57,7 +69,7 @@ class EmailSummarizer:
             format='json'
         )
         
-        content = response['message']['content']
+        content = self._clean_llm_response(response['message']['content'])
         
         # Parse JSON response
         try:
